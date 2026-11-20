@@ -1,0 +1,127 @@
+---
+- name: Validate disconnected Agent-based installation inputs
+  hosts: bastion
+  gather_facts: false
+
+  vars:
+    required_host_count: 3
+
+  tasks:
+    - name: Verify required binaries are available
+      ansible.builtin.command:
+        argv:
+          - bash
+          - -lc
+          - "command -v {{ item }}"
+      loop:
+        - "{{ openshift_install_binary }}"
+        - "{{ oc_binary }}"
+        - openssl
+        - sha256sum
+      changed_when: false
+
+    - name: Read OpenShift installer version
+      ansible.builtin.command:
+        argv:
+          - "{{ openshift_install_binary }}"
+          - version
+      register: installer_version
+      changed_when: false
+
+    - name: Stop if installer is not OpenShift 4.20.z
+      ansible.builtin.assert:
+        that:
+          - installer_version.stdout is search('4\\.20\\.')
+        fail_msg: >-
+          This repository supports only an OpenShift 4.20.z Agent-based
+          installation. Install a matching openshift-install binary.
+        success_msg: A 4.20.z OpenShift installer was detected.
+
+    - name: Stop if public example values were not replaced
+      ansible.builtin.assert:
+        that:
+          - cluster_name != "example-cluster"
+          - base_domain != "example.invalid"
+          - mirror_registry_host != "registry.example.invalid"
+          - not (cluster_name | lower is search("change-me"))
+        fail_msg: >-
+          Replace public example values with approved site values in a private
+          site-vars.yaml file before deployment.
+
+    - name: Validate compact cluster topology and MTU
+      ansible.builtin.assert:
+        that:
+          - cluster_hosts | length == required_host_count
+          - cluster_hosts | map(attribute="role") | list == ["master", "master", "master"]
+          - machine_mtu | int == 9000
+        fail_msg: >-
+          This repository supports exactly three master nodes and requires an
+          approved end-to-end MTU of 9000.
+
+    - name: Validate rendezvous host membership
+      ansible.builtin.assert:
+        that:
+          - rendezvous_ip in (cluster_hosts | map(attribute="primary_ip") | list)
+        fail_msg: rendezvous_ip must match a primary_ip in cluster_hosts.
+
+    - name: Validate required private input files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ pull_secret_file }}"
+        - "{{ ssh_public_key_file }}"
+        - "{{ mirror_ca_file }}"
+      register: private_input_files
+
+    - name: Stop if a private input file is missing
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isreg
+        fail_msg: "Required private input file is missing: {{ item.item }}"
+      loop: "{{ private_input_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Validate hardware inventory fields
+      ansible.builtin.assert:
+        that:
+          - host.hostname is match("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+          - host.primary_interface_mac is match("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
+          - host.root_device_wwn | length > 0
+          - host.interfaces | length == 4
+        fail_msg: "Invalid or incomplete hardware data for {{ host.hostname }}."
+      loop: "{{ cluster_hosts }}"
+      loop_control:
+        loop_var: host
+        label: "{{ host.hostname }}"
+
+    - name: Validate unique hostnames, IPs, and primary MAC addresses
+      ansible.builtin.assert:
+        that:
+          - (cluster_hosts | map(attribute="hostname") | list | unique | length) == (cluster_hosts | length)
+          - (cluster_hosts | map(attribute="primary_ip") | list | unique | length) == (cluster_hosts | length)
+          - (cluster_hosts | map(attribute="primary_interface_mac") | list | unique | length) == (cluster_hosts | length)
+        fail_msg: Duplicate hostname, primary IP address, or primary MAC address detected.
+
+    - name: Validate Artifactory registry TLS connectivity
+      ansible.builtin.command:
+        argv:
+          - bash
+          - -lc
+          - "timeout 15 openssl s_client -connect {{ mirror_registry_host }}:443 -CAfile {{ mirror_ca_file }} </dev/null"
+      changed_when: false
+
+    - name: Inspect installation directory
+      ansible.builtin.stat:
+        path: "{{ cluster_install_dir }}"
+      register: install_directory
+
+    - name: Stop if installation directory already exists without explicit approval
+      ansible.builtin.assert:
+        that:
+          - not install_directory.stat.exists or allow_existing_install_directory | bool
+        fail_msg: >-
+          Installation directory already exists: {{ cluster_install_dir }}.
+          Use a new directory for a new deployment. Do not override this safety
+          control unless you have verified the directory is disposable.

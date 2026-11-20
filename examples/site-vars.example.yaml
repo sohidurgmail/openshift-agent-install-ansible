@@ -1,0 +1,39 @@
+---
+# Copy outside this repository:
+# cp examples/site-vars.example.yaml ~/site-vars.yaml
+# chmod 600 ~/site-vars.yaml
+# Never commit the copy.
+
+cluster_name: CHANGE-ME
+base_domain: CHANGE-ME.example.com
+cluster_install_dir: /secure/ocp-install/CHANGE-ME
+
+mirror_registry_host: registry.example.com
+mirror_ca_file: /secure/certificates/registry-ca.crt
+pull_secret_file: /secure/secrets/pull-secret.json
+ssh_public_key_file: /home/automation/.ssh/id_ed25519.pub
+
+machine_network_cidr: 10.0.0.0/24
+machine_network_gateway: 10.0.0.1
+machine_network_dns:
+  - 10.0.0.53
+api_vip: 10.0.0.5
+ingress_vip: 10.0.0.7
+rendezvous_ip: 10.0.0.11
+
+ntp_servers:
+  - 10.0.0.123
+
+# Confirm this value with the network team.
+machine_mtu: 9000
+
+mirror_mappings:
+  - source: quay.io/openshift-release-dev/ocp-release
+    mirrors:
+      - registry.example.com/ocp4/openshift4
+  - source: quay.io/openshift-release-dev/ocp-v4.0-art-dev
+    mirrors:
+      - registry.example.com/ocp4/openshift4
+
+# Replace all host, interface, MAC address, IP address, and WWN values.
+cluster_hosts: []

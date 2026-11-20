@@ -1,0 +1,122 @@
+---
+- name: Validate completed OpenShift cluster deployment
+  hosts: bastion
+  gather_facts: false
+
+  vars:
+    kubeconfig_path: "{{ cluster_install_dir }}/auth/kubeconfig"
+
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+
+  tasks:
+    - name: Verify API access
+      ansible.builtin.command:
+        argv:
+          - "{{ oc_binary }}"
+          - whoami
+      changed_when: false
+
+    - name: Read node status
+      ansible.builtin.command:
+        argv:
+          - "{{ oc_binary }}"
+          - get
+          - nodes
+          - --no-headers
+      register: node_status
+      changed_when: false
+
+    - name: Verify three Ready nodes
+      ansible.builtin.assert:
+        that:
+          - node_status.stdout_lines | length == 3
+          - node_status.stdout_lines | select("search", " NotReady") | list | length == 0
+        fail_msg: Expected exactly three Ready nodes. Review node status before proceeding.
+
+    - name: Read ClusterOperator status
+      ansible.builtin.command:
+        argv:
+          - "{{ oc_binary }}"
+          - get
+          - clusteroperators
+          - --no-headers
+      register: cluster_operators
+      changed_when: false
+
+    - name: Identify unhealthy ClusterOperators
+      ansible.builtin.shell: |
+        {{ oc_binary }} get clusteroperators --no-headers |
+        awk '$3 != "True" || $4 != "False" || $5 != "False" {print $1}'
+      args:
+        executable: /bin/bash
+      register: unhealthy_cluster_operators
+      changed_when: false
+
+    - name: Stop if a ClusterOperator is unhealthy
+      ansible.builtin.assert:
+        that:
+          - unhealthy_cluster_operators.stdout | trim | length == 0
+        fail_msg: >-
+          Unhealthy ClusterOperators:
+          {{ unhealthy_cluster_operators.stdout_lines | join(", ") }}
+
+    - name: Read cluster version
+      ansible.builtin.command:
+        argv:
+          - "{{ oc_binary }}"
+          - get
+          - clusterversion
+          - version
+          - -o
+          - jsonpath={.status.desired.version}
+      register: cluster_version
+      changed_when: false
+
+    - name: Verify installed OpenShift minor version
+      ansible.builtin.assert:
+        that:
+          - cluster_version.stdout is search("^4\\.20\\.")
+        fail_msg: "Expected OpenShift 4.20.z, found {{ cluster_version.stdout }}."
+
+    - name: Resolve API DNS record
+      ansible.builtin.command:
+        argv:
+          - getent
+          - ahostsv4
+          - "api.{{ cluster_name }}.{{ base_domain }}"
+      changed_when: false
+
+    - name: Resolve wildcard ingress example DNS record
+      ansible.builtin.command:
+        argv:
+          - getent
+          - ahostsv4
+          - "oauth-openshift.apps.{{ cluster_name }}.{{ base_domain }}"
+      changed_when: false
+
+    - name: Build node summary
+      ansible.builtin.command:
+        argv:
+          - "{{ oc_binary }}"
+          - get
+          - nodes
+          - -o
+          - custom-columns=NAME:.metadata.name,STATUS:.status.conditions[-1].type,VERSION:.status.nodeInfo.kubeletVersion
+      register: node_summary
+      changed_when: false
+
+    - name: Display cluster validation report
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          OPENSHIFT AGENT-BASED INSTALLATION VALIDATION
+          ============================================================
+          OpenShift version : {{ cluster_version.stdout }}
+          Nodes             : 3/3 Ready
+          Cluster Operators : PASS — all Available=True, Progressing=False, Degraded=False
+
+          {{ node_summary.stdout }}
+
+          Kubeconfig        : {{ kubeconfig_path }}
+          ============================================================

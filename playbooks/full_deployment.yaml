@@ -1,0 +1,6 @@
+---
+- import_playbook: preflight.yaml
+- import_playbook: prepare_install.yaml
+- import_playbook: pause_for_bmc_boot.yaml
+- import_playbook: monitor_install.yaml
+- import_playbook: validate_cluster.yaml

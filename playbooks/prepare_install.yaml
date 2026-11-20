@@ -1,0 +1,109 @@
+---
+- name: Render manifests and create the Agent ISO
+  hosts: bastion
+  gather_facts: false
+
+  vars:
+    chrony_config: |
+      {% for server in ntp_servers %}
+      server {{ server }} iburst
+      {% endfor %}
+      driftfile /var/lib/chrony/drift
+      makestep 1.0 3
+      rtcsync
+      logdir /var/log/chrony
+    openshift_manifests_dir: "{{ cluster_install_dir }}/openshift"
+    agent_iso_path: "{{ cluster_install_dir }}/agent.{{ agent_iso_architecture }}.iso"
+
+  tasks:
+    - name: Create installation directory
+      ansible.builtin.file:
+        path: "{{ cluster_install_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Render install-config.yaml without logging secret values
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/install-config.yaml.j2"
+        dest: "{{ cluster_install_dir }}/install-config.yaml"
+        mode: "0600"
+      no_log: true
+
+    - name: Render agent-config.yaml
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/agent-config.yaml.j2"
+        dest: "{{ cluster_install_dir }}/agent-config.yaml"
+        mode: "0600"
+      no_log: true
+
+    - name: Generate Agent-based cluster manifests
+      ansible.builtin.command:
+        argv:
+          - "{{ openshift_install_binary }}"
+          - --dir
+          - "{{ cluster_install_dir }}"
+          - agent
+          - create
+          - cluster-manifests
+      changed_when: true
+
+    - name: Ensure openshift manifest directory exists
+      ansible.builtin.file:
+        path: "{{ openshift_manifests_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Inject Chrony configuration before ISO generation
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/99-master-chrony.yaml.j2"
+        dest: "{{ openshift_manifests_dir }}/99-master-chrony.yaml"
+        mode: "0600"
+
+    - name: Create ImageDigestMirrorSet manifest
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/image-digest-mirror-set.yaml.j2"
+        dest: "{{ openshift_manifests_dir }}/50-image-digest-mirror-set.yaml"
+        mode: "0600"
+
+    - name: Generate Agent ISO
+      ansible.builtin.command:
+        argv:
+          - "{{ openshift_install_binary }}"
+          - --dir
+          - "{{ cluster_install_dir }}"
+          - agent
+          - create
+          - image
+      changed_when: true
+
+    - name: Confirm Agent ISO was created
+      ansible.builtin.stat:
+        path: "{{ agent_iso_path }}"
+      register: agent_iso
+
+    - name: Stop if Agent ISO is missing
+      ansible.builtin.assert:
+        that:
+          - agent_iso.stat.exists
+          - agent_iso.stat.size > 0
+        fail_msg: "Agent ISO was not created: {{ agent_iso_path }}"
+
+    - name: Generate Agent ISO checksum
+      ansible.builtin.command:
+        argv:
+          - sha256sum
+          - "{{ agent_iso_path }}"
+      register: agent_iso_checksum
+      changed_when: false
+
+    - name: Display Agent ISO handoff details
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          AGENT ISO READY FOR MANUAL BMC VIRTUAL-MEDIA MOUNT
+          ============================================================
+          ISO path       : {{ agent_iso_path }}
+          SHA-256        : {{ agent_iso_checksum.stdout }}
+          Rendezvous IP  : {{ rendezvous_ip }}
+          Target hosts   : {{ cluster_hosts | map(attribute="hostname") | join(", ") }}
+          ============================================================

@@ -1,0 +1,41 @@
+apiVersion: v1beta1
+kind: AgentConfig
+metadata:
+  name: {{ cluster_name }}
+rendezvousIP: {{ rendezvous_ip }}
+hosts:
+{% for host in cluster_hosts %}
+  - hostname: {{ host.hostname }}
+    role: {{ host.role }}
+    interfaces:
+{% for interface in host.interfaces %}
+      - name: {{ interface.name }}
+        macAddress: {{ interface.mac_address }}
+{% endfor %}
+    rootDeviceHints:
+      wwn: {{ host.root_device_wwn }}
+    networkConfig:
+      interfaces:
+        - name: {{ host.primary_interface_name }}
+          type: ethernet
+          state: up
+          mtu: {{ machine_mtu }}
+          mac-address: {{ host.primary_interface_mac }}
+          ipv4:
+            enabled: true
+            dhcp: false
+            address:
+              - ip: {{ host.primary_ip }}
+                prefix-length: {{ machine_network_cidr.split('/')[1] }}
+      dns-resolver:
+        config:
+          server:
+{% for dns_server in machine_network_dns %}
+            - {{ dns_server }}
+{% endfor %}
+      routes:
+        config:
+          - destination: 0.0.0.0/0
+            next-hop-address: {{ machine_network_gateway }}
+            next-hop-interface: {{ host.primary_interface_name }}
+{% endfor %}

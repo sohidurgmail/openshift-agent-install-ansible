@@ -1,0 +1,36 @@
+# Private inputs and generated installer assets
+.rendered/
+.build/
+artifacts/
+*.iso
+*.iso.sha256
+*.tar.gz
+*.tar.xz
+
+# Cluster credentials and installation state
+**/auth/
+**/metadata.json
+**/.openshift_install.log
+**/.openshift_install_state.json
+**/bootstrap.ign
+**/master.ign
+**/worker.ign
+kubeconfig
+kubeadmin-password
+
+# Never commit sensitive site inputs
+*.key
+*.pem
+*.crt
+*.cer
+pull-secret*.json
+*pull-secret*.yaml
+site-vars*.yaml
+!examples/site-vars.example.yaml
+
+# Local Ansible files
+*.retry
+__pycache__/
+*.py[cod]
+.vscode/
+.idea/

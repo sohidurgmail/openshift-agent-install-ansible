@@ -1,0 +1,54 @@
+---
+- name: Monitor Agent-based OpenShift installation
+  hosts: bastion
+  gather_facts: false
+
+  tasks:
+    - name: Wait for bootstrap completion
+      ansible.builtin.command:
+        argv:
+          - "{{ openshift_install_binary }}"
+          - --dir
+          - "{{ cluster_install_dir }}"
+          - agent
+          - wait-for
+          - bootstrap-complete
+          - --log-level=info
+      changed_when: false
+
+    - name: Wait for installation completion
+      ansible.builtin.command:
+        argv:
+          - "{{ openshift_install_binary }}"
+          - --dir
+          - "{{ cluster_install_dir }}"
+          - agent
+          - wait-for
+          - install-complete
+          - --log-level=info
+      changed_when: false
+
+    - name: Confirm kubeconfig was created
+      ansible.builtin.stat:
+        path: "{{ cluster_install_dir }}/auth/kubeconfig"
+      register: kubeconfig
+
+    - name: Stop if kubeconfig is missing
+      ansible.builtin.assert:
+        that:
+          - kubeconfig.stat.exists
+          - kubeconfig.stat.size > 0
+        fail_msg: >-
+          Installation completed but kubeconfig was not found at
+          {{ cluster_install_dir }}/auth/kubeconfig.
+
+    - name: Protect kubeconfig file permissions
+      ansible.builtin.file:
+        path: "{{ cluster_install_dir }}/auth/kubeconfig"
+        mode: "0600"
+
+    - name: Display kubeconfig handoff command
+      ansible.builtin.debug:
+        msg: >-
+          Installation complete. To use the cluster, run:
+          export KUBECONFIG={{ cluster_install_dir }}/auth/kubeconfig

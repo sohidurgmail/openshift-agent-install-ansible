@@ -1,0 +1,116 @@
+---
+# Public-safe example values. Copy examples/site-vars.example.yaml to a private,
+# ignored site-vars.yaml and replace every example value before deployment.
+
+# This repository targets compact three-node Agent-based OpenShift 4.20.z clusters.
+supported_openshift_minor: "4.20"
+cluster_architecture: amd64
+# The Agent-based Installer uses x86_64 in the generated ISO filename.
+agent_iso_architecture: x86_64
+
+cluster_name: example-cluster
+base_domain: example.invalid
+cluster_install_dir: "{{ lookup('env', 'HOME') }}/ocp-install/example-cluster"
+
+# The installer binary must match the intended 4.20.z release payload.
+openshift_install_binary: openshift-install
+oc_binary: oc
+
+# Disconnected registry inputs. The Artifactory registry must already contain
+# all required release images and their digest mappings.
+mirror_registry_host: registry.example.invalid
+mirror_ca_file: "{{ cluster_install_dir }}/artifactory-ca.crt"
+pull_secret_file: "{{ cluster_install_dir }}/pull-secret.json"
+ssh_public_key_file: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519.pub"
+
+# Mirror mappings are used in install-config.yaml and to render an IDMS manifest.
+mirror_mappings:
+  - source: quay.io/openshift-release-dev/ocp-release
+    mirrors:
+      - registry.example.invalid/ocp4/openshift4
+  - source: quay.io/openshift-release-dev/ocp-v4.0-art-dev
+    mirrors:
+      - registry.example.invalid/ocp4/openshift4
+
+# Compact three-node cluster networking. End-to-end MTU must be confirmed at 9000.
+machine_mtu: 9000
+machine_network_cidr: 192.0.2.0/24
+machine_network_gateway: 192.0.2.1
+machine_network_dns:
+  - 192.0.2.53
+cluster_network_cidr: 10.128.0.0/14
+cluster_network_host_prefix: 23
+service_network_cidr: 172.30.0.0/16
+api_vip: 192.0.2.5
+ingress_vip: 192.0.2.7
+
+ntp_servers:
+  - 192.0.2.123
+
+rendezvous_ip: 192.0.2.11
+
+# Four interface names and MAC addresses are recorded per host. Only the OCP
+# machine/management interface receives an IP in this base deployment.
+cluster_hosts:
+  - hostname: master-0.example.invalid
+    role: master
+    primary_interface_name: eno1
+    primary_interface_mac: "02:00:00:00:00:11"
+    primary_ip: 192.0.2.11
+    root_device_wwn: "0x5000cca000000011"
+    interfaces:
+      - role: ocp-machine-management
+        name: eno1
+        mac_address: "02:00:00:00:00:11"
+      - role: openstack-control-plane
+        name: eno2
+        mac_address: "02:00:00:00:01:11"
+      - role: ovn-gateway
+        name: eno3
+        mac_address: "02:00:00:00:02:11"
+      - role: baremetal-provisioning
+        name: eno4
+        mac_address: "02:00:00:00:03:11"
+
+  - hostname: master-1.example.invalid
+    role: master
+    primary_interface_name: eno1
+    primary_interface_mac: "02:00:00:00:00:12"
+    primary_ip: 192.0.2.12
+    root_device_wwn: "0x5000cca000000012"
+    interfaces:
+      - role: ocp-machine-management
+        name: eno1
+        mac_address: "02:00:00:00:00:12"
+      - role: openstack-control-plane
+        name: eno2
+        mac_address: "02:00:00:00:01:12"
+      - role: ovn-gateway
+        name: eno3
+        mac_address: "02:00:00:00:02:12"
+      - role: baremetal-provisioning
+        name: eno4
+        mac_address: "02:00:00:00:03:12"
+
+  - hostname: master-2.example.invalid
+    role: master
+    primary_interface_name: eno1
+    primary_interface_mac: "02:00:00:00:00:13"
+    primary_ip: 192.0.2.13
+    root_device_wwn: "0x5000cca000000013"
+    interfaces:
+      - role: ocp-machine-management
+        name: eno1
+        mac_address: "02:00:00:00:00:13"
+      - role: openstack-control-plane
+        name: eno2
+        mac_address: "02:00:00:00:01:13"
+      - role: ovn-gateway
+        name: eno3
+        mac_address: "02:00:00:00:02:13"
+      - role: baremetal-provisioning
+        name: eno4
+        mac_address: "02:00:00:00:03:13"
+
+# Do not enable unless the directory is confirmed disposable.
+allow_existing_install_directory: false

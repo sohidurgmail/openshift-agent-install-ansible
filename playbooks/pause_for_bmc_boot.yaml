@@ -1,0 +1,21 @@
+---
+- name: Manual BMC virtual-media approval gate
+  hosts: bastion
+  gather_facts: false
+
+  vars:
+    agent_iso_path: "{{ cluster_install_dir }}/agent.{{ agent_iso_architecture }}.iso"
+
+  tasks:
+    - name: Pause for ISO mount and bare-metal boot
+      ansible.builtin.pause:
+        prompt: |
+          Manual action required.
+
+          1. Mount {{ agent_iso_path }} as virtual media on all three hosts.
+          2. Configure each host to boot from virtual media.
+          3. Power on or reboot all three hosts.
+          4. Confirm the Agent console pull check is successful on the rendezvous host.
+          5. Allow the Agent console to continue without modifying network settings.
+
+          Press Enter only after installation has started.
