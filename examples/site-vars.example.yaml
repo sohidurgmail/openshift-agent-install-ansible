@@ -6,7 +6,10 @@
 
 cluster_name: CHANGE-ME
 base_domain: CHANGE-ME.example.com
-cluster_install_dir: /secure/ocp-install/CHANGE-ME
+
+environment_tier: test
+deployment_id: test-run-001
+cluster_install_root: /secure/ocp-install
 
 mirror_registry_host: registry.example.com
 mirror_ca_file: /secure/certificates/registry-ca.crt
@@ -37,3 +40,7 @@ mirror_mappings:
 
 # Replace all host, interface, MAC address, IP address, and WWN values.
 cluster_hosts: []
+
+# Test-only redeploy guardrails. Keep these false for a first deployment.
+reuse_network_identity: false
+test_hardware_reset_confirmed: false

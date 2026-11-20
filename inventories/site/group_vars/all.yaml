@@ -5,12 +5,26 @@
 # This repository targets compact three-node Agent-based OpenShift 4.20.z clusters.
 supported_openshift_minor: "4.20"
 cluster_architecture: amd64
+
 # The Agent-based Installer uses x86_64 in the generated ISO filename.
 agent_iso_architecture: x86_64
 
 cluster_name: example-cluster
 base_domain: example.invalid
-cluster_install_dir: "{{ lookup('env', 'HOME') }}/ocp-install/example-cluster"
+
+# Each deployment attempt uses a new directory, even when test networking is reused.
+environment_tier: test
+deployment_id: CHANGE-ME
+cluster_install_root: "{{ lookup('env', 'HOME') }}/ocp-install"
+cluster_install_dir: "{{ cluster_install_root }}/{{ cluster_name }}/{{ deployment_id }}"
+
+# Explicit safety gates. These defaults intentionally stop the deployment.
+deployment_intent: ""
+confirm_cluster_name: ""
+confirm_environment_tier: ""
+change_reference: ""
+reuse_network_identity: false
+test_hardware_reset_confirmed: false
 
 # The installer binary must match the intended 4.20.z release payload.
 openshift_install_binary: openshift-install

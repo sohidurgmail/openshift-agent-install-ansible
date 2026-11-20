@@ -27,6 +27,7 @@ Populate this private file with approved values for:
 - DNS and NTP servers.
 - Three hostnames, IPs, MAC addresses, interface names, and root-disk WWNs.
 - Mirror mappings supplied by the registry/image-mirroring team.
+- A unique deployment ID for every installation attempt.
 
 Do not commit `~/site-vars.yaml`.
 
@@ -112,6 +113,36 @@ ansible-playbook -i inventories/site/hosts.yaml \
 ~~~
 
 The run pauses at the BMC virtual-media gate.
+
+## Repeated test deployment using the same VIPs and DNS
+
+The same API VIP, ingress VIP, DNS records, and node IPs can be reused for a test cluster only after the previous test cluster is fully offline and the three intended root disks have been wiped.
+
+Use a new `deployment_id` for every test iteration. This creates a new installation directory while retaining the same network identity:
+
+~~~yaml
+environment_tier: test
+deployment_id: test-run-002
+reuse_network_identity: true
+test_hardware_reset_confirmed: true
+~~~
+
+Do not set `allow_existing_install_directory=true` to redeploy. It bypasses only the directory guard; it does not reset a cluster or wipe disks.
+
+Every deployment also requires explicit command-line intent:
+
+~~~bash
+ansible-playbook -i inventories/site/hosts.yaml \
+  playbooks/full_deployment.yaml \
+  -e @~/site-vars.yaml \
+  -e deployment_intent=install \
+  -e confirm_cluster_name=<cluster-name> \
+  -e confirm_environment_tier=test
+~~~
+
+Before ISO boot, Ansible requires the operator to type the deployment authorization phrase shown on screen. If an OpenShift API already responds on the target API VIP, preflight stops the deployment.
+
+For QA and production, keep `reuse_network_identity: false` and provide a non-empty `change_reference` in the private site variables file.
 
 ## Kubeconfig usage
 

@@ -21,6 +21,14 @@ Use a new, empty `cluster_install_dir` for each new cluster deployment. The pref
 
 Do not enable that override unless you have verified that the directory is disposable and contains no credentials or deployment state that must be preserved.
 
+## Repeated test deployments
+
+Reusing the same test VIPs, DNS records, and node IPs is supported only after the previous test cluster is offline and the exact installation root devices have been wiped. Use a new `deployment_id` and therefore a new installation directory for every iteration.
+
+The preflight playbook blocks a deployment when an OpenShift API responds at the target API DNS name. It also requires explicit command-line deployment intent and a typed confirmation immediately before ISO boot.
+
+QA and production must not use the test redeploy controls. They require a change reference and do not permit `reuse_network_identity`.
+
 ## Pre-push review
 
 Before pushing:

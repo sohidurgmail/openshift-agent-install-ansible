@@ -7,6 +7,20 @@
     agent_iso_path: "{{ cluster_install_dir }}/agent.{{ agent_iso_architecture }}.iso"
 
   tasks:
+    - name: Require typed confirmation before destructive ISO boot
+      ansible.builtin.pause:
+        prompt: >-
+          Type exactly DEPLOY {{ environment_tier }} {{ cluster_name }}
+          {{ deployment_id }} to authorize mounting the Agent ISO and booting
+          the listed hosts.
+      register: boot_confirmation
+
+    - name: Stop if typed deployment confirmation is incorrect
+      ansible.builtin.assert:
+        that:
+          - boot_confirmation.user_input == "DEPLOY {{ environment_tier }} {{ cluster_name }} {{ deployment_id }}"
+        fail_msg: No ISO mount or boot authorization was granted.
+
     - name: Pause for ISO mount and bare-metal boot
       ansible.builtin.pause:
         prompt: |
@@ -17,5 +31,8 @@
           3. Power on or reboot all three hosts.
           4. Confirm the Agent console pull check is successful on the rendezvous host.
           5. Allow the Agent console to continue without modifying network settings.
+
+          For a test redeploy using the same network identity, confirm that the
+          previous cluster is offline and the exact root devices were wiped.
 
           Press Enter only after installation has started.
